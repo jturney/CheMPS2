@@ -42,6 +42,20 @@ namespace CheMPS2{
              \param FCIverbose The FCI verbose level: 0 print nothing, 1 print start and solution, 2 print everything */
          FCI(CheMPS2::Hamiltonian * Ham, const unsigned int Nel_up, const unsigned int Nel_down, const int TargetIrrep, const double maxMemWorkMB=100.0, const int FCIverbose=2);
          
+         //! Constructor
+         /** \param L The number of spatial orbitals
+             \param psi4groupnumber The group number, defined according to psi4's conventions
+             \param orbIrreps Array which contains for each of the L spatial orbitals the irrep number, defined according to psi4's conventions
+             \param Econstant The constant contribution to the Hamiltonian
+             \param OEI The one-electron integrals: Tij = OEI[i+L*j] (zero elements need to be set!)
+             \param ERI The electron repulsion integrals: ERI[i+L*(j+L*(k+L*l))] = (ij|kl) = int dr1 dr2 i(r1) j(r1) k(r2) l(r2) / |r1-r2| (zero elements need to be set!)
+             \param Nel_up The number of up (alpha) electrons
+             \param Nel_down The number of down (beta) electrons
+             \param TargetIrrep The targeted point group irrep
+             \param maxMemWorkMB Maximum workspace size in MB to be used for matrix vector product (this does not include the FCI vectors as stored for example in GSDavidson!!)
+             \param FCIverbose The FCI verbose level: 0 print nothing, 1 print start and solution, 2 print everything */
+         FCI(const unsigned int L, const int psi4groupnumber, int * orbIrreps, const double Econstant, double * OEI, double * ERI, const unsigned int Nel_up, const unsigned int Nel_down, const int TargetIrrep, const double maxMemWorkMB=100.0, const int FCIverbose=2);
+         
          //! Destructor
          virtual ~FCI();
          
@@ -144,10 +158,9 @@ namespace CheMPS2{
              \param isUp If true, the spin projection value of the second quantized operators is up, otherwise it will be down
              \param GSenergy The ground state energy returned by GSDavidson
              \param GSvector The ground state vector as calculated by GSDavidson
-             \param Ham The Hamiltonian, which contains the matrix elements
              \param RePartGF On exit RePartGF[0] contains the real part of the retarded Green's function
              \param ImPartGF On exit ImPartGF[0] contains the imaginary part of the retarded Green's function */
-         void RetardedGF(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, CheMPS2::Hamiltonian * Ham, double * RePartGF, double * ImPartGF) const;
+         void RetardedGF(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, double * RePartGF, double * ImPartGF) const;
          
          //! Calculate the addition part of the retarded Green's function: <GSvector| a_{alpha, spin(isUp)} [ omega - Ham + GSenergy + I*eta ]^{-1} a^+_{beta, spin(isUp)} |GSvector>
          /** \param omega The frequency value
@@ -157,13 +170,12 @@ namespace CheMPS2{
              \param isUp If true, the spin projection value of the second quantized operators is up, otherwise it will be down
              \param GSenergy The ground state energy returned by GSDavidson
              \param GSvector The ground state vector as calculated by GSDavidson
-             \param Ham The Hamiltonian, which contains the matrix elements
              \param RePartGF On exit RePartGF[0] contains the real part of the addition part of the retarded Green's function
              \param ImPartGF On exit ImPartGF[0] contains the imaginary part of the addition part of the retarded Green's function
              \param TwoRDMreal If not NULL, on exit the 2-RDM of Re{ [ omega - Ham + GSenergy + I*eta ]^{-1} a^+_{beta, spin(isUp)} | GSvector > }
              \param TwoRDMimag If not NULL, on exit the 2-RDM of Im{ [ omega - Ham + GSenergy + I*eta ]^{-1} a^+_{beta, spin(isUp)} | GSvector > }
              \param TwoRDMadd If not NULL, on exit the 2-RDM of a^+_{beta, spin(isUp)} | GSvector > */
-         void RetardedGF_addition(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, CheMPS2::Hamiltonian * Ham, double * RePartGF, double * ImPartGF, double * TwoRDMreal=NULL, double * TwoRDMimag=NULL, double * TwoRDMadd=NULL) const;
+         void RetardedGF_addition(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, double * RePartGF, double * ImPartGF, double * TwoRDMreal=NULL, double * TwoRDMimag=NULL, double * TwoRDMadd=NULL) const;
          
          //! Calculate the addition Green's function: GF[i+numLeft*j] = <GSvector| a_{orbsLeft[i], spin} [ alpha + beta * Ham + I*eta ]^{-1} a^+_{orbsRight[j], spin} |GSvector>
          /** \param alpha Constant parameter in the resolvent
@@ -175,13 +187,12 @@ namespace CheMPS2{
              \param numRight The number of right orbital indices
              \param isUp If true, the spin projection value of the second quantized operators is up, otherwise it will be down
              \param GSvector The ground state vector as calculated by GSDavidson
-             \param Ham The Hamiltonian, which contains the matrix elements
              \param RePartsGF On exit RePartsGF[i+numLeft*j] contains the real part of the addition Green's function
              \param ImPartsGF On exit ImPartsGF[i+numLeft*j] contains the imaginary part of the addition Green's function
              \param TwoRDMreal If not NULL, TwoRDMreal[j] contains on exit the 2-RDM of Re{ [ alpha + beta * Ham + I*eta ]^{-1} a^+_{orbsRight[j], spin} | GSvector > }
              \param TwoRDMimag If not NULL, TwoRDMimag[j] contains on exit the 2-RDM of Im{ [ alpha + beta * Ham + I*eta ]^{-1} a^+_{orbsRight[j], spin} | GSvector > }
              \param TwoRDMadd If not NULL, TwoRDMadd[j] contains on exit the 2-RDM of a^+_{orbsRight[j], spin} | GSvector > */
-         void GFmatrix_addition(const double alpha, const double beta, const double eta, int * orbsLeft, const unsigned int numLeft, int * orbsRight, const unsigned int numRight, const bool isUp, double * GSvector, CheMPS2::Hamiltonian * Ham, double * RePartsGF, double * ImPartsGF, double ** TwoRDMreal=NULL, double ** TwoRDMimag=NULL, double ** TwoRDMadd=NULL) const;
+         void GFmatrix_addition(const double alpha, const double beta, const double eta, int * orbsLeft, const unsigned int numLeft, int * orbsRight, const unsigned int numRight, const bool isUp, double * GSvector, double * RePartsGF, double * ImPartsGF, double ** TwoRDMreal=NULL, double ** TwoRDMimag=NULL, double ** TwoRDMadd=NULL) const;
          
          //! Calculate the removal part of the retarded Green's function: <GSvector| a^+_{beta, spin(isUp)} [ omega + Ham - GSenergy + I*eta ]^{-1} a_{alpha, spin(isUp)} |GSvector>
          /** \param omega The frequency value
@@ -191,13 +202,12 @@ namespace CheMPS2{
              \param isUp If true, the spin projection value of the second quantized operators is up, otherwise it will be down
              \param GSenergy The ground state energy returned by GSDavidson
              \param GSvector The ground state vector as calculated by GSDavidson
-             \param Ham The Hamiltonian, which contains the matrix elements
              \param RePartGF On exit RePartGF[0] contains the real part of the removal part of the retarded Green's function
              \param ImPartGF On exit ImPartGF[0] contains the imaginary part of the removal part of the retarded Green's function
              \param TwoRDMreal If not NULL, on exit the 2-RDM of Re{ [ omega + Ham - GSenergy + I*eta ]^{-1} a_{alpha, spin(isUp)} | GSvector > }
              \param TwoRDMimag If not NULL, on exit the 2-RDM of Im{ [ omega + Ham - GSenergy + I*eta ]^{-1} a_{alpha, spin(isUp)} | GSvector > }
              \param TwoRDMrem If not NULL, on exit the 2-RDM of a_{alpha, spin(isUp)} | GSvector > */
-         void RetardedGF_removal(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, CheMPS2::Hamiltonian * Ham, double * RePartGF, double * ImPartGF, double * TwoRDMreal=NULL, double * TwoRDMimag=NULL, double * TwoRDMrem=NULL) const;
+         void RetardedGF_removal(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, double * RePartGF, double * ImPartGF, double * TwoRDMreal=NULL, double * TwoRDMimag=NULL, double * TwoRDMrem=NULL) const;
          
          //! Calculate the removal Green's function: GF[i+numLeft*j] = <GSvector| a^+_{orbsLeft[i], spin} [ alpha + beta * Ham + I*eta ]^{-1} a_{orbsRight[j], spin} |GSvector>
          /** \param alpha Constant parameter in the resolvent
@@ -209,13 +219,12 @@ namespace CheMPS2{
              \param numRight The number of right orbital indices
              \param isUp If true, the spin projection value of the second quantized operators is up, otherwise it will be down
              \param GSvector The ground state vector as calculated by GSDavidson
-             \param Ham The Hamiltonian, which contains the matrix elements
              \param RePartsGF On exit RePartsGF[i+numLeft*j] contains the real part of the removal Green's function GF[i+numLeft*j]
              \param ImPartsGF On exit ImPartsGF[i+numLeft*j] contains the imaginary part of the removal Green's function GF[i+numLeft*j]
              \param TwoRDMreal If not NULL, TwoRDMreal[j] contains on exit the 2-RDM of Re{ [ alpha + beta * Ham + I*eta ]^{-1} a_{orbsRight[j], spin} | GSvector > }
              \param TwoRDMimag If not NULL, TwoRDMimag[j] contains on exit the 2-RDM of Im{ [ alpha + beta * Ham + I*eta ]^{-1} a_{orbsRight[j], spin} | GSvector > }
              \param TwoRDMrem If not NULL, TwoRDMrem[j] contains on exit the 2-RDM of a_{orbsRight[j], spin} | GSvector > */
-         void GFmatrix_removal(const double alpha, const double beta, const double eta, int * orbsLeft, const unsigned int numLeft, int * orbsRight, const unsigned int numRight, const bool isUp, double * GSvector, CheMPS2::Hamiltonian * Ham, double * RePartsGF, double * ImPartsGF, double ** TwoRDMreal=NULL, double ** TwoRDMimag=NULL, double ** TwoRDMrem=NULL) const;
+         void GFmatrix_removal(const double alpha, const double beta, const double eta, int * orbsLeft, const unsigned int numLeft, int * orbsRight, const unsigned int numRight, const bool isUp, double * GSvector, double * RePartsGF, double * ImPartsGF, double ** TwoRDMreal=NULL, double ** TwoRDMimag=NULL, double ** TwoRDMrem=NULL) const;
          
          //! Calculate the density response Green's function (= forward - backward propagating part)
          /** \param omega The frequency value
@@ -429,11 +438,17 @@ namespace CheMPS2{
          //! The constant term of the Hamiltonian
          double Econstant;
          
+         //! The one-body matrix elements T[ i + L * j ]
+         double * OEI;
+         
          //! The AUGMENTED one-body matrix elements Gmat[ i + L * j ] = T[ i + L * j ] - 0.5 * sum_k getERI(i, k, k, j)
          double * Gmat;
          
          //! The electron repulsion integrals (in chemists notation: \int dr1 dr2 orb1(r1) * orb2(r1) * orb3(r2) * orb4(r2) / |r1-r2| = ERI[ orb1 + L * ( orb2 + L * ( orb3 + L * orb4 ) ) ])
          double * ERI;
+         
+         //! The group number
+         int psi4groupnumber;
          
          //! The number of irreps of the molecule's Abelian point group with real-valued character table
          unsigned int NumIrreps;

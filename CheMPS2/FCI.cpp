@@ -36,24 +36,26 @@ CheMPS2::FCI::FCI(Hamiltonian * Ham, const unsigned int theNel_up, const unsigne
    FCIverbose   = FCIverbose_in;
    maxMemWorkMB = maxMemWorkMB_in;
    L = Ham->getL();
-   assert( theNel_up    <= L );
-   assert( theNel_down  <= L );
+   assert( theNel_up   <= L );
+   assert( theNel_down <= L );
    assert( maxMemWorkMB >  0.0 );
    Nel_up   = theNel_up;
    Nel_down = theNel_down;
    
    // Construct the irrep product table and the list with the orbitals irreps
-   CheMPS2::Irreps myIrreps( Ham->getNGroup() );
-   NumIrreps         = myIrreps.getNumberOfIrreps();
-   TargetIrrep       = TargetIrrep_in;
-   orb2irrep         = new int[ L ];
+   psi4groupnumber = Ham->getNGroup();
+   CheMPS2::Irreps myIrreps( psi4groupnumber );
+   NumIrreps       = myIrreps.getNumberOfIrreps();
+   TargetIrrep     = TargetIrrep_in;
+   orb2irrep       = new int[ L ];
    for (unsigned int orb = 0; orb < L; orb++){ orb2irrep[ orb ] = Ham->getOrbitalIrrep( orb ); }
 
    /* Copy the Hamiltonian over:
-         G_ij = T_ij - 0.5 \sum_k <ik|kj> and ERI_{ijkl} = <ij|kl>
-         <ij|kl> is the electron repulsion integral, int dr1 dr2 i(r1) j(r1) k(r2) l(r2) / |r1-r2| */
+         G_ij = T_ij - 0.5 \sum_k (ik|kj) and ERI_{ijkl} = (ij|kl)
+         (ij|kl) is the electron repulsion integral, int dr1 dr2 i(r1) j(r1) k(r2) l(r2) / |r1-r2| */
    Econstant = Ham->getEconst();
    Gmat = new double[ L * L ];
+   OEI  = new double[ L * L ];
    ERI  = new double[ L * L * L * L ];
    for (unsigned int orb1 = 0; orb1 < L; orb1++){
       for (unsigned int orb2 = 0; orb2 < L; orb2++){
@@ -65,7 +67,56 @@ CheMPS2::FCI::FCI(Hamiltonian * Ham, const unsigned int theNel_up, const unsigne
                ERI[ orb1 + L * ( orb2 + L * ( orb3 + L * orb4 ) ) ] = Ham->getVmat( orb1 , orb3 , orb2 , orb4 );
             }
          }
+         OEI[  orb1 + L * orb2 ] = Ham->getTmat( orb1 , orb2 );
          Gmat[ orb1 + L * orb2 ] = Ham->getTmat( orb1 , orb2 ) - 0.5 * tempvar;
+      }
+   }
+   
+   // Set all other internal variables
+   StartupCountersVsBitstrings();
+   StartupLookupTables();
+   StartupIrrepCenter();
+
+}
+
+CheMPS2::FCI::FCI(const unsigned int L_in, const int psi4groupnumber_in, int * orb2irrep_in, const double Econstant_in, double * OEI_in, double * ERI_in, const unsigned int theNel_up, const unsigned int theNel_down, const int TargetIrrep_in, const double maxMemWorkMB_in, const int FCIverbose_in){
+
+   // Copy the basic information
+   FCIverbose   = FCIverbose_in;
+   maxMemWorkMB = maxMemWorkMB_in;
+   L = L_in;
+   assert( theNel_up   <= L );
+   assert( theNel_down <= L );
+   assert( maxMemWorkMB >  0.0 );
+   Nel_up   = theNel_up;
+   Nel_down = theNel_down;
+   
+   // Construct the irrep product table and the list with the orbitals irreps
+   psi4groupnumber = psi4groupnumber_in;
+   CheMPS2::Irreps myIrreps( psi4groupnumber );
+   NumIrreps       = myIrreps.getNumberOfIrreps();
+   TargetIrrep     = TargetIrrep_in;
+   orb2irrep       = new int[ L ];
+   for (unsigned int orb = 0; orb < L; orb++){ orb2irrep[ orb ] = orb2irrep_in[ orb ]; }
+
+   /* Copy the Hamiltonian over:
+         G_ij = T_ij - 0.5 \sum_k (ik|kj) and ERI_{ijkl} = (ij|kl)
+         (ij|kl) is the electron repulsion integral, int dr1 dr2 i(r1) j(r1) k(r2) l(r2) / |r1-r2| */
+   Econstant = Econstant_in;
+   Gmat = new double[ L * L ];
+   OEI  = new double[ L * L ];
+   ERI  = new double[ L * L * L * L ];
+   for (unsigned int orb1 = 0; orb1 < L; orb1++){
+      for (unsigned int orb2 = 0; orb2 < L; orb2++){
+         double tempvar = 0.0;
+         for (unsigned int orb3 = 0; orb3 < L; orb3++){
+            tempvar += ERI_in[ orb1 + L * ( orb3 + L * ( orb3 + L * orb2 ) ) ];
+            for (unsigned int orb4 = 0; orb4 < L; orb4++){
+               ERI[ orb1 + L * ( orb2 + L * ( orb3 + L * orb4 ) ) ] = ERI_in[ orb1 + L * ( orb2 + L * ( orb3 + L * orb4 ) ) ];
+            }
+         }
+         OEI[  orb1 + L * orb2 ] = OEI_in[ orb1 + L * orb2 ];
+         Gmat[ orb1 + L * orb2 ] = OEI_in[ orb1 + L * orb2 ] - 0.5 * tempvar;
       }
    }
    
@@ -81,6 +132,7 @@ CheMPS2::FCI::~FCI(){
    // FCI::FCI
    delete [] orb2irrep;
    delete [] Gmat;
+   delete [] OEI;
    delete [] ERI;
    
    // FCI::StartupCountersVsBitstrings
@@ -1855,7 +1907,7 @@ void CheMPS2::FCI::CGDiagPrecond(const double alpha, const double beta, const do
 
 }
 
-void CheMPS2::FCI::RetardedGF(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, CheMPS2::Hamiltonian * Ham, double * RePartGF, double * ImPartGF) const{
+void CheMPS2::FCI::RetardedGF(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, double * RePartGF, double * ImPartGF) const{
 
    assert( RePartGF != NULL );
    assert( ImPartGF != NULL );
@@ -1864,11 +1916,11 @@ void CheMPS2::FCI::RetardedGF(const double omega, const double eta, const unsign
    //                              + < 0 | a^+_{beta,spin} [ omega + Ham - E_0 + I*eta ]^{-1} a_{alpha,spin}  | 0 > (removal  amplitude)
 
    double Realpart, Imagpart;
-   RetardedGF_addition(omega, eta, orb_alpha, orb_beta, isUp, GSenergy, GSvector, Ham, &Realpart, &Imagpart);
+   RetardedGF_addition(omega, eta, orb_alpha, orb_beta, isUp, GSenergy, GSvector, &Realpart, &Imagpart);
    RePartGF[0] = Realpart; // Set
    ImPartGF[0] = Imagpart; // Set
    
-   RetardedGF_removal( omega, eta, orb_alpha, orb_beta, isUp, GSenergy, GSvector, Ham, &Realpart, &Imagpart);
+   RetardedGF_removal( omega, eta, orb_alpha, orb_beta, isUp, GSenergy, GSvector, &Realpart, &Imagpart);
    RePartGF[0] += Realpart; // Add
    ImPartGF[0] += Imagpart;
    
@@ -1879,7 +1931,7 @@ void CheMPS2::FCI::RetardedGF(const double omega, const double eta, const unsign
 
 }
 
-void CheMPS2::FCI::GFmatrix_addition(const double alpha, const double beta, const double eta, int * orbsLeft, const unsigned int numLeft, int * orbsRight, const unsigned int numRight, const bool isUp, double * GSvector, CheMPS2::Hamiltonian * Ham, double * RePartsGF, double * ImPartsGF, double ** TwoRDMreal, double ** TwoRDMimag, double ** TwoRDMadd) const{
+void CheMPS2::FCI::GFmatrix_addition(const double alpha, const double beta, const double eta, int * orbsLeft, const unsigned int numLeft, int * orbsRight, const unsigned int numRight, const bool isUp, double * GSvector, double * RePartsGF, double * ImPartsGF, double ** TwoRDMreal, double ** TwoRDMimag, double ** TwoRDMadd) const{
 
    /*
                                                                          1
@@ -1920,7 +1972,7 @@ void CheMPS2::FCI::GFmatrix_addition(const double alpha, const double beta, cons
          const unsigned int addNelDOWN = getNel_down() + ((isUp) ? 0 : 1);
          const int addIrrep = getIrrepProduct( getTargetIrrep(), getOrb2Irrep( orbitalRight ) );
          
-         CheMPS2::FCI additionFCI( Ham, addNelUP, addNelDOWN, addIrrep, maxMemWorkMB, FCIverbose );
+         CheMPS2::FCI additionFCI( L, psi4groupnumber, orb2irrep, Econstant, OEI, ERI, addNelUP, addNelDOWN, addIrrep, maxMemWorkMB, FCIverbose );
          const unsigned long long addVecLength = additionFCI.getVecLength( 0 );
          double * addVector = new double[ addVecLength ];
          additionFCI.ActWithSecondQuantizedOperator( 'C', isUp, orbitalRight, addVector, this, GSvector ); // | addVector > = a^+_right,spin | GSvector >
@@ -1951,7 +2003,7 @@ void CheMPS2::FCI::GFmatrix_addition(const double alpha, const double beta, cons
 
 }
 
-void CheMPS2::FCI::RetardedGF_addition(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, CheMPS2::Hamiltonian * Ham, double * RePartGF, double * ImPartGF, double * TwoRDMreal, double * TwoRDMimag, double * TwoRDMadd) const{
+void CheMPS2::FCI::RetardedGF_addition(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, double * RePartGF, double * ImPartGF, double * TwoRDMreal, double * TwoRDMimag, double * TwoRDMadd) const{
 
    // Addition amplitude < 0 | a_{alpha, spin} [ omega - Ham + E_0 + I*eta ]^{-1} a^+_{beta, spin} | 0 >
    
@@ -1962,7 +2014,7 @@ void CheMPS2::FCI::RetardedGF_addition(const double omega, const double eta, con
    int orb_left  = orb_alpha;
    int orb_right = orb_beta;
    
-   GFmatrix_addition( omega + GSenergy, -1.0, eta, &orb_left, 1, &orb_right, 1, isUp, GSvector, Ham, RePartGF, ImPartGF, TwoRDMreal_wrap, TwoRDMimag_wrap, TwoRDMadd_wrap );
+   GFmatrix_addition( omega + GSenergy, -1.0, eta, &orb_left, 1, &orb_right, 1, isUp, GSvector, RePartGF, ImPartGF, TwoRDMreal_wrap, TwoRDMimag_wrap, TwoRDMadd_wrap );
    
    if ( TwoRDMreal != NULL ){ delete [] TwoRDMreal_wrap; }
    if ( TwoRDMimag != NULL ){ delete [] TwoRDMimag_wrap; }
@@ -1970,7 +2022,7 @@ void CheMPS2::FCI::RetardedGF_addition(const double omega, const double eta, con
 
 }
 
-void CheMPS2::FCI::GFmatrix_removal(const double alpha, const double beta, const double eta, int * orbsLeft, const unsigned int numLeft, int * orbsRight, const unsigned int numRight, const bool isUp, double * GSvector, CheMPS2::Hamiltonian * Ham, double * RePartsGF, double * ImPartsGF, double ** TwoRDMreal, double ** TwoRDMimag, double ** TwoRDMrem) const{
+void CheMPS2::FCI::GFmatrix_removal(const double alpha, const double beta, const double eta, int * orbsLeft, const unsigned int numLeft, int * orbsRight, const unsigned int numRight, const bool isUp, double * GSvector, double * RePartsGF, double * ImPartsGF, double ** TwoRDMreal, double ** TwoRDMimag, double ** TwoRDMrem) const{
 
    /*
                                                                            1
@@ -2011,7 +2063,7 @@ void CheMPS2::FCI::GFmatrix_removal(const double alpha, const double beta, const
          const unsigned int removeNelDOWN = getNel_down() - ((isUp) ? 0 : 1);
          const int removeIrrep = getIrrepProduct( getTargetIrrep(), getOrb2Irrep( orbitalRight ) );
          
-         CheMPS2::FCI removalFCI( Ham, removeNelUP, removeNelDOWN, removeIrrep, maxMemWorkMB, FCIverbose );
+         CheMPS2::FCI removalFCI( L, psi4groupnumber, orb2irrep, Econstant, OEI, ERI, removeNelUP, removeNelDOWN, removeIrrep, maxMemWorkMB, FCIverbose );
          const unsigned long long removeVecLength = removalFCI.getVecLength( 0 );
          double * removeVector = new double[ removeVecLength ];
          removalFCI.ActWithSecondQuantizedOperator( 'A', isUp, orbitalRight, removeVector, this, GSvector ); // | removeVector > = a_right,spin | GSvector >
@@ -2042,7 +2094,7 @@ void CheMPS2::FCI::GFmatrix_removal(const double alpha, const double beta, const
 
 }
 
-void CheMPS2::FCI::RetardedGF_removal(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, CheMPS2::Hamiltonian * Ham, double * RePartGF, double * ImPartGF, double * TwoRDMreal, double * TwoRDMimag, double * TwoRDMrem) const{
+void CheMPS2::FCI::RetardedGF_removal(const double omega, const double eta, const unsigned int orb_alpha, const unsigned int orb_beta, const bool isUp, const double GSenergy, double * GSvector, double * RePartGF, double * ImPartGF, double * TwoRDMreal, double * TwoRDMimag, double * TwoRDMrem) const{
 
    // Removal amplitude < 0 | a^+_{beta, spin} [ omega + Ham - E_0 + I*eta ]^{-1} a_{alpha, spin} | 0 >
    
@@ -2054,7 +2106,7 @@ void CheMPS2::FCI::RetardedGF_removal(const double omega, const double eta, cons
    int orb_right = orb_alpha;
    
    // orb_alpha = orb_right in this case !!
-   GFmatrix_removal( omega - GSenergy, 1.0, eta, &orb_left, 1, &orb_right, 1, isUp, GSvector, Ham, RePartGF, ImPartGF, TwoRDMreal_wrap, TwoRDMimag_wrap, TwoRDMrem_wrap );
+   GFmatrix_removal( omega - GSenergy, 1.0, eta, &orb_left, 1, &orb_right, 1, isUp, GSvector, RePartGF, ImPartGF, TwoRDMreal_wrap, TwoRDMimag_wrap, TwoRDMrem_wrap );
    
    if ( TwoRDMreal != NULL ){ delete [] TwoRDMreal_wrap; }
    if ( TwoRDMimag != NULL ){ delete [] TwoRDMimag_wrap; }
