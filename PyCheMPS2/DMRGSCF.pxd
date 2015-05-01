@@ -1,6 +1,6 @@
 #
 #   CheMPS2: a spin-adapted implementation of DMRG for ab initio quantum chemistry
-#   Copyright (C) 2013, 2014 Sebastian Wouters
+#   Copyright (C) 2013-2015 Sebastian Wouters
 #
 #   This program is free software; you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ cimport Ham
 cimport ConvScheme
 cimport DMRGSCFopt
 
-cdef extern from "CASSCF.h" namespace "CheMPS2":
+cdef extern from "chemps2/CASSCF.h" namespace "CheMPS2":
     cdef cppclass CASSCF:
         CASSCF(Ham.Hamiltonian *, int *, int *) except +
         void setupStart(int *, int *, int *)

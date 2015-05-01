@@ -1,6 +1,6 @@
 #
 #   CheMPS2: a spin-adapted implementation of DMRG for ab initio quantum chemistry
-#   Copyright (C) 2013, 2014 Sebastian Wouters
+#   Copyright (C) 2013-2015 Sebastian Wouters
 #
 #   This program is free software; you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@ cimport Prob
 cimport Corr
 cimport TwoRDM
 
-cdef extern from "DMRG.h" namespace "CheMPS2":
+cdef extern from "chemps2/DMRG.h" namespace "CheMPS2":
     cdef cppclass DMRG:
         DMRG(const Prob.Problem *, const ConvScheme.ConvergenceScheme *) except +
         double Solve()
